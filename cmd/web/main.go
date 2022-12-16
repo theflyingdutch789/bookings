@@ -1,22 +1,31 @@
 package main
 
 import (
+	"encoding/gob"
+	"fmt"
 	"github.com/alexedwards/scs/v2"
-	"github.com/theflyingdutch789/bookings/pkg/Render"
-	"github.com/theflyingdutch789/bookings/pkg/config"
-	"github.com/theflyingdutch789/bookings/pkg/handlers"
+	"github.com/theflyingdutch789/bookings/internal/config"
+	"github.com/theflyingdutch789/bookings/internal/handlers"
+	"github.com/theflyingdutch789/bookings/internal/models"
+	"github.com/theflyingdutch789/bookings/internal/render"
 	"log"
 	"net/http"
 	"time"
 )
 
+const portNumber = ":8080"
+
 var app config.AppConfig
 var session *scs.SessionManager
 
+// main is the main function
 func main() {
-
+	//what am i going to put in the session storage
+	gob.Register(models.Reservation{})
+	// change this to true when in production
 	app.InProduction = false
-	// Initialize a new session manager and configure the session lifetime.
+
+	// set up the session
 	session = scs.New()
 	session.Lifetime = 24 * time.Hour
 	session.Cookie.Persist = true
@@ -25,26 +34,28 @@ func main() {
 
 	app.Session = session
 
-	tc, err := Render.CreateTemplateCache()
+	tc, err := render.CreateTemplateCache()
 	if err != nil {
-		log.Fatal("template cache creation failed line 14 main")
+		log.Fatal("cannot create template cache")
 	}
 
 	app.TemplateCache = tc
 	app.UseCache = false
 
-	Render.NewTemplates(&app)
 	repo := handlers.NewRepo(&app)
 	handlers.NewHandlers(repo)
-	http.HandleFunc("/", handlers.Repo.Home)
-	http.HandleFunc("/about", handlers.Repo.About)
-	srv := http.Server{
-		Addr:    ":3000",
+
+	render.NewTemplates(&app)
+
+	fmt.Println(fmt.Sprintf("Staring application on port %s", portNumber))
+
+	srv := &http.Server{
+		Addr:    portNumber,
 		Handler: routes(&app),
 	}
 
 	err = srv.ListenAndServe()
 	if err != nil {
-		log.Println("Error serving template in serve and listen func line 33 main")
+		log.Fatal(err)
 	}
 }
